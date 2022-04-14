@@ -29,7 +29,7 @@ func NewSharded(size, shardCount int) (*ShardedCache, error) {
 
 // NewWithEvict constructs a fixed size cache with the given eviction
 // callback.
-func NewShardedWithEvict(size, shardCount int, onEvicted func(key interface{}, value interface{})) (*ShardedCache, error) {
+func NewShardedWithEvict(size, shardCount int, onEvicted func(key string, value interface{})) (*ShardedCache, error) {
 	if shardCount <= 0 {
 		shardCount = defaultShardCount
 	}

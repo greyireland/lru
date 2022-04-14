@@ -66,6 +66,8 @@ func BenchmarkLRU_BigSharded(b *testing.B) {
 
 			i++
 		}
-		// b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
+		if hit > 1000 {
+			b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
+		}
 	})
 }
