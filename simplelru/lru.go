@@ -128,6 +128,10 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 func (c *LRU) Get(key string) (value interface{}, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
+		// should never happen, but the check is so cheap we should just do it
+		if entry.key != key {
+			return nil, false
+		}
 		entry.lastUsed = c.getCounter()
 		return entry.value, true
 	}
