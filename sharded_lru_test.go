@@ -76,7 +76,7 @@ func BenchmarkLRU_HotKey(b *testing.B) {
 	var rngMu sync.Mutex
 	rng := newRand()
 	rngMu.Lock()
-	l, err := NewSharded[int64](128*1024, defaultShardCount)
+	l, err := NewSharded(128*1024, defaultShardCount)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
