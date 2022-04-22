@@ -7,10 +7,6 @@ import (
 	"unsafe"
 )
 
-func TestNewSharded(t *testing.T) {
-
-}
-
 func TestShardSize(t *testing.T) {
 	if 128 != unsafe.Sizeof(shard{}) {
 		t.Fatalf("expected shard to be 128-bytes in size")

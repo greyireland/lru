@@ -15,19 +15,20 @@ type shard struct {
 	_padding [16]uint8
 }
 
-// Cache is a thread-safe fixed size LRU cache.
+// ShardedCache is a thread-safe fixed size LRU cache where entries are distributed
+// across a sharded set of (smaller) LRU caches, each with their own lock.
 type ShardedCache struct {
 	templateHash maphash.Hash
 	shards       []shard
 	size         int
 }
 
-// New creates an LRU of the given size.
+// NewSharded creates an LRU of the given size, with the given shardCount.
 func NewSharded(size, shardCount int) (*ShardedCache, error) {
 	return NewShardedWithEvict(size, shardCount, nil)
 }
 
-// NewWithEvict constructs a fixed size cache with the given eviction
+// NewShardedWithEvict constructs a fixed size cache with the given eviction
 // callback.
 func NewShardedWithEvict(size, shardCount int, onEvicted func(key string, value interface{})) (*ShardedCache, error) {
 	if shardCount <= 0 {
@@ -64,8 +65,11 @@ func (c *ShardedCache) Purge() {
 }
 
 func (c *ShardedCache) getShard(key string) *shard {
+	// copy the templateHash onto the stack
 	hash := c.templateHash
-	hash.WriteString(key)
+	// the documentation says this never writes short and never fails,
+	// but returns values to implement the io.StringWriter interface.
+	_, _ = hash.WriteString(key)
 	shardId := hash.Sum64() % uint64(len(c.shards))
 	return &c.shards[shardId]
 }

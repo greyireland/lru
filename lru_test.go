@@ -8,7 +8,15 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"unsafe"
 )
+
+func TestNonShardSize(t *testing.T) {
+	size := unsafe.Sizeof(Cache{})
+	if 128 != size {
+		t.Fatalf("expected shard to be 128-bytes in size, not %d", size)
+	}
+}
 
 func newRand() *rand.Rand {
 	seedBytes := make([]byte, 8)
