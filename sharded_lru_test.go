@@ -68,7 +68,7 @@ func BenchmarkLRU_BigSharded(b *testing.B) {
 	})
 }
 
-func BenchmarkLRU_HotKey(b *testing.B) {
+func BenchmarkLRU_HotKeySharded(b *testing.B) {
 	var rngMu sync.Mutex
 	rng := newRand()
 	rngMu.Lock()
