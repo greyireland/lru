@@ -23,7 +23,8 @@ type ShardedCache struct {
 	size         int
 }
 
-// NewSharded creates an LRU of the given size, with the given shardCount.
+// NewSharded creates an LRU of the given size, with the given shardCount.  If shardCount
+// is 0, the defaultShardCount of 256 is used.
 func NewSharded(size, shardCount int) (*ShardedCache, error) {
 	return NewShardedWithEvict(size, shardCount, nil)
 }
