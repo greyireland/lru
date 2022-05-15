@@ -1,8 +1,6 @@
 package approxlru
 
 import (
-	"fmt"
-	"strconv"
 	"testing"
 	"unsafe"
 )
@@ -10,7 +8,12 @@ import (
 func TestSize(t *testing.T) {
 	// we need this to be a specific size for our sharding strategy in the outer package
 	const expected = LRUStructSize
-	actual := unsafe.Sizeof(LRU{})
+	actual := unsafe.Sizeof(LRU[int, int]{})
+	if expected != actual {
+		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
+	}
+	// should be invariant of generic instantiation
+	actual = unsafe.Sizeof(LRU[string, *string]{})
 	if expected != actual {
 		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
 	}
@@ -22,19 +25,19 @@ func TestSize(t *testing.T) {
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k string, v interface{}) {
-		if k != fmt.Sprintf("%v", v) {
+	onEvicted := func(k, v int) {
+		if k != v {
 			t.Fatalf("Evict values not equal (%v!=%v)", k, v)
 		}
 		evictCounter++
 	}
-	l, err := NewLRU(128, onEvicted)
+	l, err := NewLRU[int, int](128, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	for i := 0; i < 256; i++ {
-		l.Add(strconv.Itoa(i), i)
+		l.Add(i, i)
 	}
 	if l.Len() != 128 {
 		t.Fatalf("bad len: %v", l.Len())
@@ -45,13 +48,13 @@ func TestLRU(t *testing.T) {
 	}
 
 	for k := range l.items {
-		if v, ok := l.Get(k); !ok || k != fmt.Sprintf("%v", v) {
+		if v, ok := l.Get(k); !ok || k != v {
 			t.Fatalf("bad key: %v", k)
 		}
 	}
 	stale := 0
 	for i := 0; i < 128; i++ {
-		_, ok := l.Get(strconv.Itoa(i))
+		_, ok := l.Get(i)
 		if ok {
 			stale++
 		}
@@ -63,7 +66,7 @@ func TestLRU(t *testing.T) {
 
 	diedBeforeTheirTime := 0
 	for i := 128; i < 256; i++ {
-		_, ok := l.Get(strconv.Itoa(i))
+		_, ok := l.Get(i)
 		if !ok {
 			diedBeforeTheirTime++
 		}
@@ -74,7 +77,7 @@ func TestLRU(t *testing.T) {
 	}
 
 	for i := 128; i < 192; i++ {
-		k := strconv.Itoa(i)
+		k := i
 		ok := l.Remove(k)
 		if !ok {
 			continue
@@ -89,7 +92,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 
-	l.Get("192") // expect 192 to be last key in l.Keys()
+	l.Get(192) // expect 192 to be last key in l.Keys()
 
 	/*for k := range l.items {
 		if (i < 63 && k != i+193) || (i == 63 && k != 192) {
@@ -101,7 +104,7 @@ func TestLRU(t *testing.T) {
 	if l.Len() != 0 {
 		t.Fatalf("bad len: %v", l.Len())
 	}
-	if _, ok := l.Get("200"); ok {
+	if _, ok := l.Get(200); ok {
 		t.Fatalf("should contain nothing")
 	}
 }
@@ -109,11 +112,11 @@ func TestLRU(t *testing.T) {
 // Test that Add returns true/false if an eviction occurred
 func TestLRU_Add(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k string, v interface{}) {
+	onEvicted := func(k string, v int) {
 		evictCounter++
 	}
 
-	l, err := NewLRU(1, onEvicted)
+	l, err := NewLRU[string, int](1, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -128,7 +131,7 @@ func TestLRU_Add(t *testing.T) {
 
 // Test that Contains doesn't update recent-ness
 func TestLRU_Contains(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU[string, int](2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -147,7 +150,7 @@ func TestLRU_Contains(t *testing.T) {
 
 // Test that Peek doesn't update recent-ness
 func TestLRU_Peek(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU[string, int](2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -170,10 +173,10 @@ func TestLRU_Peek(t *testing.T) {
 // Test that Resize can upsize and downsize
 func TestLRU_Resize(t *testing.T) {
 	onEvictCounter := 0
-	onEvicted := func(k string, v interface{}) {
+	onEvicted := func(k string, v int) {
 		onEvictCounter++
 	}
-	l, err := NewLRU(2, onEvicted)
+	l, err := NewLRU[string, int](2, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

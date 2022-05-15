@@ -5,7 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
-	"sort"
+
+	"golang.org/x/exp/slices"
 )
 
 // newRand returns a new *math/rand.Rand object initialized with a seed from /dev/urandom.
@@ -20,7 +21,7 @@ func newRand() *rand.Rand {
 }
 
 // EvictCallback is used to get a callback when a cache entry is evicted
-type EvictCallback func(key string, value interface{})
+type EvictCallback[K comparable, V any] func(key K, value V)
 
 // LRUStructSize is the size of the LRU struct -- there is a unit test to ensure
 // this const matches the size measured with `unsafe.Sizeof`.
@@ -31,13 +32,13 @@ const LRUStructSize = 104
 // LRU implements a non-thread safe, fixed size, approximate LRU cache.  Rather
 // than a linked list encoding a strict LRU relationship, we approximate it by
 // comparing 8 random entries and evicting the oldest.
-type LRU struct {
-	items   map[string]int
-	data    []entry
+type LRU[K comparable, V any] struct {
+	items   map[K]int
+	data    []entry[K, V]
 	counter int64
 	size    int64
 	rng     rand.Rand
-	onEvict EvictCallback
+	onEvict EvictCallback[K, V]
 }
 
 // randomProbes is the number of elements we consider for eviction at a time,
@@ -45,21 +46,21 @@ type LRU struct {
 const randomProbes = 8
 
 // entry is used to hold a value in the evictList
-type entry struct {
+type entry[K comparable, V any] struct {
 	lastUsed int64
-	key      string
-	value    interface{}
+	key      K
+	value    V
 }
 
 // NewLRU constructs an LRU of the given size.  Memory for the full capacity of the
 // LRU cache is allocated upfront.
-func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
+func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K, V], error) {
 	if size <= 0 {
 		return nil, errors.New("must provide a positive size")
 	}
-	c := &LRU{
-		data:    make([]entry, 0, size),
-		items:   make(map[string]int, size),
+	c := &LRU[K, V]{
+		data:    make([]entry[K, V], 0, size),
+		items:   make(map[K]int, size),
 		counter: 1,
 		size:    int64(size),
 		rng:     *newRand(),
@@ -68,7 +69,7 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 	return c, nil
 }
 
-func (c *LRU) getCounter() int64 {
+func (c *LRU[K, V]) getCounter() int64 {
 	// if someone initializes a LRU as `&simplelru.LRU` directly, c.counter will
 	// be initialized to zero.  increment it to 1 to avoid Problems (we use 0 as
 	// a sentinel to mean "entry is not set") -- this branch will almost always be
@@ -78,14 +79,11 @@ func (c *LRU) getCounter() int64 {
 	}
 	n := c.counter
 	c.counter++
-	if c.counter < 0 {
-		panic("counter overflow; won't happen in practice :rip:")
-	}
 	return n
 }
 
 // Purge is used to completely clear the cache.
-func (c *LRU) Purge() {
+func (c *LRU[K, V]) Purge() {
 	// only iterate through the items if we have an eviction callback registered.
 	if c.onEvict != nil {
 		for k, i := range c.items {
@@ -96,16 +94,16 @@ func (c *LRU) Purge() {
 	}
 
 	c.data = c.data[:0]
-	c.items = make(map[string]int, c.size)
+	c.items = make(map[K]int, c.size)
 }
 
 //go:noinline
-func (c *LRU) shuffle() {
+func (c *LRU[K, V]) shuffle() {
 	c.rng.Shuffle(len(c.data), c.swap)
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *LRU) Add(key string, value interface{}) (evicted bool) {
+func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	now := c.getCounter()
 	// Check for existing item
 	if i, ok := c.items[key]; ok {
@@ -121,7 +119,7 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 	}
 
 	// Add new item
-	ent := entry{now, key, value}
+	ent := entry[K, V]{now, key, value}
 
 	if int64(len(c.data)) == c.size {
 		evicted = true
@@ -141,7 +139,7 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 }
 
 // invarant: must have space in the array
-func (c *LRU) addShuffled(ent entry) {
+func (c *LRU[K, V]) addShuffled(ent entry[K, V]) {
 	if int64(len(c.data)) == c.size {
 		panic("invariant broken")
 	}
@@ -155,7 +153,7 @@ func (c *LRU) addShuffled(ent entry) {
 	c.swap(i, j)
 }
 
-func (c *LRU) swap(i, j int) {
+func (c *LRU[K, V]) swap(i, j int) {
 	// nothing to do; don't touch memory
 	if i == j {
 		return
@@ -168,12 +166,13 @@ func (c *LRU) swap(i, j int) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *LRU) Get(key string) (value interface{}, ok bool) {
+func (c *LRU[K, V]) Get(key K) (value V, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
 		// should never happen, but the check is cheap.
 		if entry.key != key {
-			return nil, false
+			var d V
+			return d, false
 		}
 		entry.lastUsed = c.getCounter()
 		return entry.value, true
@@ -183,14 +182,14 @@ func (c *LRU) Get(key string) (value interface{}, ok bool) {
 
 // Contains checks if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
-func (c *LRU) Contains(key string) (ok bool) {
+func (c *LRU[K, V]) Contains(key K) (ok bool) {
 	_, ok = c.items[key]
 	return ok
 }
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
-func (c *LRU) Peek(key string) (value interface{}, ok bool) {
+func (c *LRU[K, V]) Peek(key K) (value V, ok bool) {
 	if i, ok := c.items[key]; ok {
 		return c.data[i].value, true
 	}
@@ -199,7 +198,7 @@ func (c *LRU) Peek(key string) (value interface{}, ok bool) {
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *LRU) Remove(key string) (present bool) {
+func (c *LRU[K, V]) Remove(key K) (present bool) {
 	if i, ok := c.items[key]; ok {
 		c.removeElement(i, c.data[i], true)
 		return true
@@ -208,20 +207,12 @@ func (c *LRU) Remove(key string) (present bool) {
 }
 
 // Len returns the number of items in the cache.
-func (c *LRU) Len() int {
+func (c *LRU[K, V]) Len() int {
 	return len(c.items)
 }
 
-// byLastUsed is used to sort a slice of entry structs by its lastUsed value
-// in descending order.
-type byLastUsed []entry
-
-func (a byLastUsed) Len() int           { return len(a) }
-func (a byLastUsed) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byLastUsed) Less(i, j int) bool { return a[i].lastUsed > a[j].lastUsed }
-
 // Resize changes the cache size -- it is O(n * log(n)) expensive, and is best avoided.
-func (c *LRU) Resize(size int) (evicted int) {
+func (c *LRU[K, V]) Resize(size int) (evicted int) {
 	diff := c.Len() - size
 	if diff < 0 {
 		diff = 0
@@ -229,7 +220,10 @@ func (c *LRU) Resize(size int) (evicted int) {
 
 	// sort in descending order, and update the items map to point at the
 	// updated entry indexes
-	sort.Sort(byLastUsed(c.data))
+	slices.SortFunc(c.data, func(a, b entry[K, V]) bool {
+		return a.lastUsed > b.lastUsed
+	})
+
 	for i, entry := range c.data {
 		// if lastUsed is zero, the entry is actually empty/not-set.
 		if entry.lastUsed == 0 {
@@ -250,7 +244,7 @@ func (c *LRU) Resize(size int) (evicted int) {
 		c.data = c.data[:size]
 	} else {
 		oldData := c.data
-		c.data = make([]entry, oldSize, size)
+		c.data = make([]entry[K, V], oldSize, size)
 		copy(c.data, oldData)
 	}
 
@@ -258,7 +252,7 @@ func (c *LRU) Resize(size int) (evicted int) {
 }
 
 // findOldest identifies an old item from the cache (approximately _the_ oldest).
-func (c *LRU) findOldest() (off int, ok bool) {
+func (c *LRU[K, V]) findOldest() (off int, ok bool) {
 	size := c.Len()
 	if size <= 0 {
 		return -1, false
@@ -268,7 +262,7 @@ func (c *LRU) findOldest() (off int, ok bool) {
 	base := c.rng.Intn(size)
 	oldestOff := base
 	// _copy_ the initial oldest onto the stack
-	var oldest entry = c.data[base]
+	var oldest entry[K, V] = c.data[base]
 
 	// if our offset does NOT result in us wrapping off the end of the array
 	// (which is very likely AND should be predicted well), don't require `% size`
@@ -298,7 +292,7 @@ func (c *LRU) findOldest() (off int, ok bool) {
 }
 
 // removeElement is used to remove a given list element from the cache
-func (c *LRU) removeElement(i int, ent entry, doSwap bool) {
+func (c *LRU[K, V]) removeElement(i int, ent entry[K, V], doSwap bool) {
 	if int64(i) >= c.size || len(c.data) == 0 {
 		panic("invariant broken")
 	}
@@ -307,7 +301,7 @@ func (c *LRU) removeElement(i int, ent entry, doSwap bool) {
 		c.swap(i, len(c.data)-1)
 
 		// clear out the item to avoid holding on to a reference for the GC
-		c.data[len(c.data)-1] = entry{}
+		c.data[len(c.data)-1] = entry[K, V]{}
 		// truncate the array by 1
 		c.data = c.data[:len(c.data)-1]
 	}
