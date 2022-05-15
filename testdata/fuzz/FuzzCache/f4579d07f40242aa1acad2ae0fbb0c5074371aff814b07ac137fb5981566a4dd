@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("00CcC00+\x19\x198!.\x19Z)\x19\x19\"z\x19c\x19c#&!\x19\x19.b2\x199\x19($!\"")
