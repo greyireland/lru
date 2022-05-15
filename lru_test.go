@@ -11,6 +11,37 @@ import (
 	"unsafe"
 )
 
+func FuzzCache(f *testing.F) {
+	trace := make([]traceEntry, 36)
+	for i := 0; i < 36; i++ {
+		var n int64
+		if i%2 == 0 {
+			n = rand.Int63() % 16384
+		} else {
+			n = rand.Int63() % 32768
+		}
+		trace[i] = traceEntry{strconv.FormatInt(n, 10), n}
+	}
+
+	f.Add([]byte{0, 1})
+	f.Fuzz(func(t *testing.T, s []byte) {
+		l, err := New(32)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		for i, b := range s {
+			t := trace[i%36]
+			// call add with 2/3 probability
+			if b < 192 {
+				l.Add(t.k, t.v)
+			} else {
+				l.Remove(t.k)
+			}
+		}
+	})
+}
+
 func TestNonShardSize(t *testing.T) {
 	size := unsafe.Sizeof(Cache{})
 	if 128 != size {

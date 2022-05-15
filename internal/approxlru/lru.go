@@ -101,12 +101,7 @@ func (c *LRU) Purge() {
 
 //go:noinline
 func (c *LRU) shuffle() {
-	c.rng.Shuffle(len(c.data), func(i, j int) {
-		c.items[c.data[i].key] = j
-		c.items[c.data[j].key] = i
-
-		c.data[i], c.data[j] = c.data[j], c.data[i]
-	})
+	c.rng.Shuffle(len(c.data), c.swap)
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
@@ -128,24 +123,43 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 	// Add new item
 	ent := entry{now, key, value}
 
-	if int64(len(c.data)) < c.size {
-		i := len(c.data)
-		c.data = append(c.data, ent)
-		c.items[key] = i
-		// if we have filled up the cache for the first time, shuffle
-		// the items to ensure they are randomly distributed in the array.
-		// we need this to ensure our random probing in removeOldest is correct.
-		if int64(len(c.data)) == c.size {
-			c.shuffle()
-		}
-	} else {
+	if int64(len(c.data)) == c.size {
 		evicted = true
-		i := c.removeOldest()
-		c.data[i] = ent
-		c.items[key] = i
+		if ok := c.removeOldest(); !ok || int64(len(c.data)) == c.size {
+			panic("invariant broken")
+		}
 	}
 
+	c.addShuffled(ent)
+
 	return
+}
+
+// invarant: must have space in the array
+func (c *LRU) addShuffled(ent entry) {
+	if int64(len(c.data)) == c.size {
+		panic("invariant broken")
+	}
+
+	i := len(c.data)
+
+	c.data = append(c.data, ent)
+	c.items[ent.key] = i
+
+	j := c.rng.Intn(len(c.data))
+	c.swap(i, j)
+}
+
+func (c *LRU) swap(i, j int) {
+	// nothing to do; don't touch memory
+	if i == j {
+		return
+	}
+
+	c.items[c.data[i].key] = j
+	c.items[c.data[j].key] = i
+
+	c.data[i], c.data[j] = c.data[j], c.data[i]
 }
 
 // Get looks up a key's value from the cache.
@@ -235,17 +249,14 @@ func (c *LRU) Resize(size int) (evicted int) {
 		copy(c.data, oldData)
 	}
 
-	// now that we've resized, shuffle things so that random probing works.
-	c.shuffle()
-
 	return diff
 }
 
 // removeOldest removes an old item from the cache (approximately _the_ oldest).
-func (c *LRU) removeOldest() (off int) {
+func (c *LRU) removeOldest() (ok bool) {
 	size := c.Len()
 	if size <= 0 {
-		return -1
+		return false
 	}
 
 	// pick a random offset in our array of items to probe
@@ -280,18 +291,23 @@ func (c *LRU) removeOldest() (off int) {
 
 	c.removeElement(oldestOff, oldest)
 
-	return oldestOff
+	return true
 }
 
 // removeElement is used to remove a given list element from the cache
 func (c *LRU) removeElement(i int, ent entry) {
-	// we could have found an empty slot -- nothing to remove if that is the case.
-	if ent.lastUsed == 0 {
-		return
+	if int64(i) >= c.size || len(c.data) == 0 {
+		panic("invariant broken")
 	}
 
-	c.data[i] = entry{}
+	c.swap(i, len(c.data)-1)
 	delete(c.items, ent.key)
+
+	// clear out the item to avoid holding on to a reference for the GC
+	c.data[len(c.data)-1] = entry{}
+	// truncate the array by 1
+	c.data = c.data[:len(c.data)-1]
+
 	if c.onEvict != nil {
 		c.onEvict(ent.key, ent.value)
 	}
