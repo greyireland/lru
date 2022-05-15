@@ -125,9 +125,14 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 
 	if int64(len(c.data)) == c.size {
 		evicted = true
-		if ok := c.removeOldest(); !ok || int64(len(c.data)) == c.size {
+		if i, ok := c.findOldest(); ok {
+			c.removeElement(i, c.data[i], false)
+			c.data[i] = ent
+			c.items[ent.key] = i
+		} else {
 			panic("invariant broken")
 		}
+		return
 	}
 
 	c.addShuffled(ent)
@@ -196,7 +201,7 @@ func (c *LRU) Peek(key string) (value interface{}, ok bool) {
 // key was contained.
 func (c *LRU) Remove(key string) (present bool) {
 	if i, ok := c.items[key]; ok {
-		c.removeElement(i, c.data[i])
+		c.removeElement(i, c.data[i], true)
 		return true
 	}
 	return false
@@ -237,7 +242,7 @@ func (c *LRU) Resize(size int) (evicted int) {
 	oldSize := len(c.data)
 	for i := 0; i < diff; i++ {
 		j := oldSize - 1 - i
-		c.removeElement(j, c.data[j])
+		c.removeElement(j, c.data[j], true)
 	}
 
 	c.size = int64(size)
@@ -252,11 +257,11 @@ func (c *LRU) Resize(size int) (evicted int) {
 	return diff
 }
 
-// removeOldest removes an old item from the cache (approximately _the_ oldest).
-func (c *LRU) removeOldest() (ok bool) {
+// findOldest identifies an old item from the cache (approximately _the_ oldest).
+func (c *LRU) findOldest() (off int, ok bool) {
 	size := c.Len()
 	if size <= 0 {
-		return false
+		return -1, false
 	}
 
 	// pick a random offset in our array of items to probe
@@ -289,24 +294,25 @@ func (c *LRU) removeOldest() (ok bool) {
 		}
 	}
 
-	c.removeElement(oldestOff, oldest)
-
-	return true
+	return oldestOff, true
 }
 
 // removeElement is used to remove a given list element from the cache
-func (c *LRU) removeElement(i int, ent entry) {
+func (c *LRU) removeElement(i int, ent entry, doSwap bool) {
 	if int64(i) >= c.size || len(c.data) == 0 {
 		panic("invariant broken")
 	}
 
-	c.swap(i, len(c.data)-1)
-	delete(c.items, ent.key)
+	if doSwap {
+		c.swap(i, len(c.data)-1)
 
-	// clear out the item to avoid holding on to a reference for the GC
-	c.data[len(c.data)-1] = entry{}
-	// truncate the array by 1
-	c.data = c.data[:len(c.data)-1]
+		// clear out the item to avoid holding on to a reference for the GC
+		c.data[len(c.data)-1] = entry{}
+		// truncate the array by 1
+		c.data = c.data[:len(c.data)-1]
+	}
+
+	delete(c.items, ent.key)
 
 	if c.onEvict != nil {
 		c.onEvict(ent.key, ent.value)
