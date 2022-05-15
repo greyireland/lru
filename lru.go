@@ -34,42 +34,43 @@ func NewWithEvict(size int, onEvicted func(key string, value interface{})) (*Cac
 // Purge is used to completely clear the cache.
 func (c *Cache) Purge() {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.lru.Purge()
-	c.lock.Unlock()
 }
 
 // Add adds a value to the cache. Returns true if an eviction occurred.
 func (c *Cache) Add(key string, value interface{}) (evicted bool) {
 	c.lock.Lock()
-	evicted = c.lru.Add(key, value)
-	c.lock.Unlock()
-	return evicted
+	defer c.lock.Unlock()
+
+	return c.lru.Add(key, value)
 }
 
 // Get looks up a key's value from the cache.
 func (c *Cache) Get(key string) (value interface{}, ok bool) {
 	c.lock.Lock()
-	value, ok = c.lru.Get(key)
-	c.lock.Unlock()
-	return value, ok
+	defer c.lock.Unlock()
+
+	return c.lru.Get(key)
 }
 
 // Contains checks if a key is in the cache, without updating the
 // recent-ness or deleting it for being stale.
 func (c *Cache) Contains(key string) bool {
 	c.lock.Lock()
-	containKey := c.lru.Contains(key)
-	c.lock.Unlock()
-	return containKey
+	defer c.lock.Unlock()
+
+	return c.lru.Contains(key)
 }
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
 func (c *Cache) Peek(key string) (value interface{}, ok bool) {
 	c.lock.Lock()
-	value, ok = c.lru.Peek(key)
-	c.lock.Unlock()
-	return value, ok
+	defer c.lock.Unlock()
+
+	return c.lru.Peek(key)
 }
 
 // ContainsOrAdd checks if a key is in the cache without updating the
@@ -105,23 +106,23 @@ func (c *Cache) PeekOrAdd(key string, value interface{}) (previous interface{}, 
 // Remove removes the provided key from the cache.
 func (c *Cache) Remove(key string) (present bool) {
 	c.lock.Lock()
-	present = c.lru.Remove(key)
-	c.lock.Unlock()
-	return
+	defer c.lock.Unlock()
+
+	return c.lru.Remove(key)
 }
 
 // Resize changes the cache size.
 func (c *Cache) Resize(size int) (evicted int) {
 	c.lock.Lock()
-	evicted = c.lru.Resize(size)
-	c.lock.Unlock()
-	return evicted
+	defer c.lock.Unlock()
+
+	return c.lru.Resize(size)
 }
 
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
 	c.lock.Lock()
-	length := c.lru.Len()
-	c.lock.Unlock()
-	return length
+	defer c.lock.Unlock()
+
+	return c.lru.Len()
 }
