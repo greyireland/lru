@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("PWd\x8bkcy\x19\x94%\xa3,Z\xb86*yZ\xb4((\x19\xb6c\x9c,'y8e99X%21A201X27220AA0")
