@@ -3,13 +3,13 @@ package lru
 import (
 	"sync"
 
-	"github.com/bpowers/approx-lru/simplelru"
+	"github.com/bpowers/approx-lru/internal/approxlru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
 type Cache struct {
 	lock sync.Mutex
-	lru  simplelru.LRU
+	lru  approxlru.LRU
 	_    [16]byte
 }
 
@@ -21,7 +21,7 @@ func New(size int) (*Cache, error) {
 // NewWithEvict constructs a fixed size cache with the given eviction
 // callback.
 func NewWithEvict(size int, onEvicted func(key string, value interface{})) (*Cache, error) {
-	lru, err := simplelru.NewLRU(size, onEvicted)
+	lru, err := approxlru.NewLRU(size, onEvicted)
 	if err != nil {
 		return nil, err
 	}

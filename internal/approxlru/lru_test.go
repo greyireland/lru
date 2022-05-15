@@ -1,4 +1,4 @@
-package simplelru
+package approxlru
 
 import (
 	"fmt"
