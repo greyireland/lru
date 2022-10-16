@@ -1,13 +1,13 @@
-package lru
+package main
 
 import (
 	"fmt"
+	"github.com/greyireland/lru"
 	"strconv"
-	"testing"
 )
 
-func TestNew(t *testing.T) {
-	l := New[string, int](128)
+func main() {
+	l := lru.New[string, int](128)
 	for i := 0; i < 256; i++ {
 		l.Add(strconv.Itoa(i), i)
 	}
@@ -15,6 +15,6 @@ func TestNew(t *testing.T) {
 		panic(fmt.Sprintf("bad len: %v", l.Len()))
 	}
 	if v, ok := l.Get("200"); ok {
-		_ = v // use v
+		fmt.Println(v) //200
 	}
 }
