@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("Z'c9\x00'?c\x9841\r,(bz\f!a1Z#yB2\"7\xf9x8C\xde\x13B$\xd8\xeb2")

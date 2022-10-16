@@ -1,4 +1,4 @@
-package approxlru
+package lru
 
 import (
 	crand "crypto/rand"

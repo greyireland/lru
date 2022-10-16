@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("!\xbcyXYa'(B2\xb8BI0\xe5X8ByAcC\x88'+Y\x16AL,9,Gx")

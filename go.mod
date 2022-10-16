@@ -1,4 +1,4 @@
-module github.com/bpowers/approx-lru
+module github.com/greyireland/lru
 
 go 1.18
 

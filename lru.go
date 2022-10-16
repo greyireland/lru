@@ -3,32 +3,32 @@ package lru
 import (
 	"sync"
 
-	"github.com/bpowers/approx-lru/internal/approxlru"
+	"github.com/greyireland/lru/internal/lru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
 type Cache[K comparable, V any] struct {
 	lock sync.Mutex
-	lru  approxlru.LRU[K, V]
+	lru  lru.LRU[K, V]
 	_    [16]byte
 }
 
 // New creates an LRU of the given size.
-func New[K comparable, V any](size int) (*Cache[K, V], error) {
+func New[K comparable, V any](size int) *Cache[K, V] {
 	return NewWithEvict[K, V](size, nil)
 }
 
 // NewWithEvict constructs a fixed size cache with the given eviction
 // callback.
-func NewWithEvict[K comparable, V any](size int, onEvicted func(key K, value V)) (*Cache[K, V], error) {
-	lru, err := approxlru.NewLRU(size, onEvicted)
+func NewWithEvict[K comparable, V any](size int, onEvicted func(key K, value V)) *Cache[K, V] {
+	lru, err := lru.NewLRU(size, onEvicted)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	c := &Cache[K, V]{
 		lru: *lru,
 	}
-	return c, nil
+	return c
 }
 
 // Purge is used to completely clear the cache.

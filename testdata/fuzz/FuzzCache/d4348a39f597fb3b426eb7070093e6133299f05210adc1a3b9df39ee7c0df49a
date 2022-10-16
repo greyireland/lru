@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("7CAx%2X0C0$BCz\x06b9C!+\x06z#01xA8)8172 2\xc8B8")

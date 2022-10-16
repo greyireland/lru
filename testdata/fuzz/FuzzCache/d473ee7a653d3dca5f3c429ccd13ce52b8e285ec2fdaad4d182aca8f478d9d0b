@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("00#'YC\"009+(0BXCa8c1%1,.AA9$89+,1*\"Y")

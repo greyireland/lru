@@ -1,5 +1,5 @@
 // Package simplelru provides simple LRU implementation based on build-in container/list.
-package approxlru
+package lru
 
 // LRUCache is the interface for simple LRU cache.
 type LRUCache[K comparable, V any] interface {

@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("Ac\xbb9X7WdX7A8%!709#Yb1002111001A701090000827127100")

@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("\xf4\xcdmP =\xc8\x00\x01")
